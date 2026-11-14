@@ -17,11 +17,23 @@
     "doc": "docs"
   },
   "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "migration:generate": "npm run build && typeorm migration:generate -d dist/DatabaseDataSource.js",
+    "migration:run": "npm run build && typeorm migration:run -d dist/DatabaseDataSource.js",
+    "start": "node --enable-source-maps dist/main.js",
+    "start:dev": "tsc-watch --project tsconfig.build.json --onSuccess \"node --enable-source-maps dist/main.js\"",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix --max-warnings=0",
     "format": "eslint . --fix && prettier --write .",
     "format:check": "prettier --check .",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "packageManager": "npm@11.19.1",
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true,
+    "necord@7.1.1": false
   },
   "engines": {
     "node": ">=24.15.0"
@@ -29,6 +41,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "24.19.2",
+    "@types/sprintf-js": "1.1.4",
     "eslint": "10.14.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-explicit-exceptions": "0.13.3",
@@ -36,12 +49,30 @@
     "eslint-plugin-simple-import-sort": "14.0.0",
     "globals": "17.14.0",
     "prettier": "3.10.1",
+    "tsc-watch": "7.2.0",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.72.2"
+    "typescript-eslint": "8.72.2",
+    "vitest": "5.1.0"
   },
   "overrides": {
     "eslint-plugin-explicit-exceptions": {
       "eslint": "$eslint"
     }
+  },
+  "dependencies": {
+    "@nestjs/common": "12.5.0",
+    "@nestjs/config": "12.1.1",
+    "@nestjs/core": "12.5.0",
+    "@nestjs/typeorm": "12.0.3",
+    "better-sqlite3": "12.11.1",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
+    "discord-api-types": "0.37.120",
+    "discord.js": "14.28.1",
+    "necord": "7.1.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "sprintf-js": "1.1.3",
+    "typeorm": "1.1.3"
   }
 }

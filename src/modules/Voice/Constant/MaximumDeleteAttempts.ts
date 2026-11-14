@@ -1,0 +1,1 @@
+export const MAXIMUM_DELETE_ATTEMPTS = 3;

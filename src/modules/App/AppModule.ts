@@ -1,0 +1,31 @@
+import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { ValidateEnv } from "../../config/env/ValidateEnv.js";
+import { OperationModule } from "../Core/Operation/OperationModule.js";
+import { CreateConfigProvider } from "../Core/Provider/CreateConfigProvider.js";
+import { DiscordModule } from "../Discord/DiscordModule.js";
+import { HealthConfigFactory } from "../Health/Config/Factory/HealthConfigFactory.js";
+import { HealthConfig } from "../Health/Config/HealthConfig.js";
+import { DatabaseConfig } from "../Infrastructure/Database/Config/DatabaseConfig.js";
+import { DatabaseConfigFactory } from "../Infrastructure/Database/Config/Factory/DatabaseConfigFactory.js";
+import { DatabaseModule } from "../Infrastructure/Database/DatabaseModule.js";
+import { LoggingModule } from "../Logging/LoggingModule.js";
+import { DatabaseOptionsFactory } from "./Factory/DatabaseOptionsFactory.js";
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true, cache: true, validate: ValidateEnv }),
+    DatabaseModule.forRootAsync({
+      useClass: DatabaseOptionsFactory,
+      extraProviders: [
+        DatabaseConfigFactory,
+        CreateConfigProvider(DatabaseConfig, DatabaseConfigFactory),
+      ],
+    }),
+    LoggingModule,
+    OperationModule,
+    DiscordModule,
+  ],
+  providers: [HealthConfigFactory, CreateConfigProvider(HealthConfig, HealthConfigFactory)],
+})
+export class AppModule {}

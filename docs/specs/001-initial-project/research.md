@@ -79,7 +79,13 @@ TypeORM 1.1.3 требует `better-sqlite3` версии 12; установк�
 
 Источник: [Create Guild Channel и Get Guild Channels](https://docs.discord.com/developers/resources/guild#create-guild-channel). Применимые поля голосового канала фиксируются по API и версии SDK при реализации; имя и позиция обрабатываются по исключениям spec.
 
-В опубликованном `discord.js@14.28.1` метод `GuildChannel.clone()` передаёт `position: this.rawPosition` и не копирует все необходимые голосовые поля. Для требований TempVoice выбирается явный `guild.channels.create()` с допустимыми настройками голосового канала и без `position`.
+В опубликованном `discord.js@14.28.1` метод `GuildChannel.clone()` передаёт `position: this.rawPosition` и не копирует все необходимые голосовые поля. При реализации также проверен `GuildChannelManager.create()`: он не принимает и не сериализует flags. Поэтому адаптер использует публичный `client.rest.post(Routes.guildChannels(...))` с `RESTPostAPIGuildChannelJSONBody`, одним запросом без `position`. Для GuildVoice копируется изменяемый `IsSpoilerChannel`; `ChannelObfuscated` обозначает недоступные данные и не копируется. Типы и enum берутся из публичных экспортов discord.js.
+
+Состав определяется по актуальному voice-state cache доступного guild. Неизвестная принадлежность участника к ботам и потеря ViewChannel означают Unknown, а не пустоту. Прямой UnknownChannel (10003) считается отсутствием только в прежнем доступном поколении guild; отказ доступа, обфускация и пропажа cache таким доказательством не служат. При копировании overwrites проверяются все Allow/Deny и добавляемые права создателя; установка ManageRoles в overwrite требует Administrator, но общего требования Administrator для работы бота нет.
+
+`GuildChannelManager.delete()` после REST вызывает `ChannelDeleteAction`, который синхронно доставляет `channelDelete`. Вход Observer отделяется от AsyncLocalStorage-контекста исходного сценария: отдельное уведомление ставится в очередь, не наследуя владение текущей операцией. Локальная проверка через настоящие listeners Necord обнаружила этот случай; после исправления добавлен регрессионный бизнес-тест.
+
+Дополнительные источники: [Channel flags](https://docs.discord.com/developers/resources/channel#channel-object-channel-flags), [коды ошибок Discord](https://docs.discord.com/developers/topics/opcodes-and-status-codes#json-json-error-codes), опубликованные исходники discord.js 14.28.1 и Necord 7.1.1. Реальные права и поведение Discord API требуют отдельной проверки на тестовом guild.
 
 ## Миграция ESLint 10 с сохранением правил
 
@@ -115,3 +121,9 @@ TypeORM 1.1.3 требует `better-sqlite3` версии 12; установк�
 Команды проекта `lint` и `format:check` проходят. `lint:fix` применяет исправления ESLint, `format` — исправления ESLint и затем Prettier. Ранее известные ограничения полноты анализа исключений не устранены миграцией; review контракта ошибок остаётся обязательным.
 
 Источники: опубликованные метаданные и исходники плагина, [миграция ESLint 10](https://eslint.org/docs/latest/use/migrate-to-10.0.0), [npm overrides](https://docs.npmjs.com/cli/v11/configuring-npm/package-json#overrides).
+
+## Конфигурация по примеру GoldGiverBackend
+
+После проверки и указания пользователя перенесён механизм env-групп, ConfigFactory, FactoryInterface и CreateConfigProvider из текущего GoldGiverBackend. Для валидации и преобразования добавлены class-transformer 0.5.1 и class-validator 0.15.1; эти версии закреплены в package.json и lockfile. Это проверка уже в рабочем дереве TempVoice, а не часть первоначального изолированного эксперимента.
+
+Чистая установка, строгая компиляция, lint, сборка и пять существующих бизнес-тестов проходят. Локально проверены Nest DI с фабриками, загрузка .env из другого рабочего каталога, дефолты и нормализация путей, безопасный отказ до открытия SQLite, а также контекст CLI и миграции без Discord token и health-настроек. Схема БД, WAL и timeout сохранены. Подробности и ограничения находятся в [verification.md](verification.md).
