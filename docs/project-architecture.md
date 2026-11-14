@@ -230,7 +230,7 @@ ESLint использует `eslint.config.mjs`; форматирование Pr
 
 Для конкурирующих claim и recovery при необходимости используется реальная SQLite. Discord permissions, копирование настроек, DM-команды, Gateway recovery, multi-arch сборка и сохранность Docker Volume проверяются на тестовой инфраструктуре по критериям приёмки spec.
 
-Команды lint, lint:fix, format и format:check настроены; type-aware правила используют корневой tsconfig.json. При подготовке каркаса добавляются typecheck, build и запуск Vitest.
+Команды lint, lint:fix, format, format:check, typecheck, build и запуск Vitest настроены; type-aware правила используют корневой tsconfig.json.
 
 ## План реализации
 
