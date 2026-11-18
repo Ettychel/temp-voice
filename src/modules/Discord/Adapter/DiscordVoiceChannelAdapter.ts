@@ -89,25 +89,27 @@ export class DiscordVoiceChannelAdapter implements VoiceChannelGatewayInterface 
       throw new VoiceChannelMutationError();
     }
 
+    let created: unknown;
+
     try {
-      const created = await this.client.rest.post(Routes.guildChannels(guildId), {
+      created = await this.client.rest.post(Routes.guildChannels(guildId), {
         body: this.optionsFactory.create(source, creator),
       });
-
-      if (
-        typeof created !== "object" ||
-        created === null ||
-        !("id" in created) ||
-        typeof created.id !== "string"
-      ) {
-        throw new VoiceChannelMutationError();
-      }
-
-      // Return known identity even if the connection changed while the POST was pending.
-      return created.id;
     } catch {
       throw new VoiceChannelMutationError();
     }
+
+    if (
+      typeof created !== "object" ||
+      created === null ||
+      !("id" in created) ||
+      typeof created.id !== "string"
+    ) {
+      throw new VoiceChannelMutationError();
+    }
+
+    // Return known identity even if the connection changed while the POST was pending.
+    return created.id;
   }
 
   /** @throws {Promise<VoiceChannelMutationError>} The guild/member is unavailable or movement failed. */
@@ -182,21 +184,26 @@ export class DiscordVoiceChannelAdapter implements VoiceChannelGatewayInterface 
 
   /** @throws {Promise<VoiceChannelMutationError>} Discord deletion failed. */
   async deleteChannel(guildId: string, channelId: string): Promise<void> {
-    try {
-      const { guild, epoch } = this.currentGuild(guildId);
+    let guild: Guild;
+    let epoch: number;
 
-      try {
-        await guild.channels.delete(channelId);
-      } catch (error) {
-        if (!(
-          error instanceof DiscordAPIError &&
-          error.code === RESTJSONErrorCodes.UnknownChannel &&
-          this.state.isCurrent(guildId, epoch)
-        )) {
-          throw new VoiceChannelMutationError();
-        }
-      }
+    try {
+      ({ guild, epoch } = this.currentGuild(guildId));
     } catch {
+      throw new VoiceChannelMutationError();
+    }
+
+    try {
+      await guild.channels.delete(channelId);
+    } catch (error) {
+      if (
+        error instanceof DiscordAPIError &&
+        error.code === RESTJSONErrorCodes.UnknownChannel &&
+        this.state.isCurrent(guildId, epoch)
+      ) {
+        return;
+      }
+
       throw new VoiceChannelMutationError();
     }
   }
@@ -235,15 +242,10 @@ export class DiscordVoiceChannelAdapter implements VoiceChannelGatewayInterface 
       throw new VoiceChannelUnavailableError();
     }
 
+    let channel: GuildBasedChannel | null;
+
     try {
-      const channel = await guild.channels.fetch(channelId, { force });
-      this.assertCurrent(guild, epoch);
-
-      if (!channel || channel.flags.has(ChannelFlags.ChannelObfuscated)) {
-        throw new VoiceChannelUnavailableError();
-      }
-
-      return channel;
+      channel = await guild.channels.fetch(channelId, { force });
     } catch (error) {
       this.assertCurrent(guild, epoch);
 
@@ -253,6 +255,14 @@ export class DiscordVoiceChannelAdapter implements VoiceChannelGatewayInterface 
 
       throw new VoiceChannelUnavailableError();
     }
+
+    this.assertCurrent(guild, epoch);
+
+    if (!channel || channel.flags.has(ChannelFlags.ChannelObfuscated)) {
+      throw new VoiceChannelUnavailableError();
+    }
+
+    return channel;
   }
 
   /** @throws {Promise<VoiceChannelUnavailableError>} The guild member cannot be read. */

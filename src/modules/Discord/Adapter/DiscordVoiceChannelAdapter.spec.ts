@@ -161,6 +161,31 @@ describe("Discord safety policies with network substituted", () => {
     expect(client.rest.post).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["current", "disconnected", "reconnected"])(
+    "accepts an already deleted channel only in the same available generation: %s",
+    async (generation) => {
+      guild.channels.delete.mockImplementationOnce(async () => {
+        if (generation !== "current") {
+          state.invalidate("guild");
+
+          if (generation === "reconnected") {
+            state.markAvailable("guild");
+          }
+        }
+
+        throw apiError(RESTJSONErrorCodes.UnknownChannel, 404);
+      });
+
+      const deletion = adapter.deleteChannel("guild", "room");
+
+      if (generation === "current") {
+        await expect(deletion).resolves.toBeUndefined();
+      } else {
+        await expect(deletion).rejects.toBeInstanceOf(VoiceChannelMutationError);
+      }
+    },
+  );
+
   it("rejects copying overwrites the bot cannot reproduce", async () => {
     bot.permissions = new PermissionsBitField(
       PermissionFlagsBits.ViewChannel |
