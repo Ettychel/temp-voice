@@ -17,4 +17,7 @@ export class OwnerCode {
 
   @Column({ name: "expires_at", type: "integer", nullable: true })
   expiresAt!: number | null;
+
+  @Column({ name: "is_redeemed", type: "boolean", default: false })
+  isRedeemed!: boolean;
 }

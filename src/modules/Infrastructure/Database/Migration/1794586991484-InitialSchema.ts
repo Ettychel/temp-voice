@@ -18,7 +18,7 @@ export class InitialSchema1794586991484 implements MigrationInterface {
     );
 
     await queryRunner.query(
-      `CREATE TABLE "owner_codes" ("id" integer PRIMARY KEY NOT NULL, "hash" text NOT NULL, "kind" varchar CHECK( "kind" IN ('initial','transfer','recovery') ) NOT NULL, "expires_at" integer, CONSTRAINT "CHK_owner_codes_singleton" CHECK ("id" = 1))`,
+      `CREATE TABLE "owner_codes" ("id" integer PRIMARY KEY NOT NULL, "hash" text NOT NULL, "kind" varchar CHECK( "kind" IN ('initial','transfer','recovery') ) NOT NULL, "expires_at" integer, "is_redeemed" boolean NOT NULL DEFAULT (0), CONSTRAINT "CHK_owner_codes_singleton" CHECK ("id" = 1))`,
     );
 
     await queryRunner.query(

@@ -1,30 +1,21 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
-import { ValidateEnvGroup } from "../../config/env/ValidateEnvGroup.js";
-import { DatabaseEnvVariables } from "../../config/env/Variables/DatabaseEnvVariables.js";
+import { DatabaseOptionsModule } from "../App/DatabaseOptionsModule.js";
 import { DatabaseOptionsFactory } from "../App/Factory/DatabaseOptionsFactory.js";
-import { CreateConfigProvider } from "../Core/Provider/CreateConfigProvider.js";
-import { DatabaseConfig } from "../Infrastructure/Database/Config/DatabaseConfig.js";
-import { DatabaseConfigFactory } from "../Infrastructure/Database/Config/Factory/DatabaseConfigFactory.js";
+import { DatabaseModule } from "../Infrastructure/Database/DatabaseModule.js";
 import { LoggingModule } from "../Logging/LoggingModule.js";
-
-import type { ConfigurationError } from "../../config/env/Error/ConfigurationError.js";
+import { OwnershipModule } from "../Ownership/OwnershipModule.js";
+import { OwnerRecoverCommand } from "./Command/OwnerRecoverCommand.js";
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      cache: true,
-      /** @throws {ConfigurationError} Database settings are invalid. */
-      validate: (environment) => ValidateEnvGroup(DatabaseEnvVariables, environment),
-    }),
+    DatabaseOptionsModule,
     LoggingModule,
+    DatabaseModule.forRootAsync({
+      imports: [DatabaseOptionsModule],
+      useExisting: DatabaseOptionsFactory,
+    }),
+    OwnershipModule,
   ],
-  providers: [
-    DatabaseConfigFactory,
-    CreateConfigProvider(DatabaseConfig, DatabaseConfigFactory),
-    DatabaseOptionsFactory,
-  ],
-  exports: [DatabaseOptionsFactory],
+  providers: [OwnerRecoverCommand],
 })
 export class CliModule {}

@@ -63,6 +63,7 @@ describe("temporary channel lifecycle with Discord substituted and real SQLite",
   let lifetime: OperationLifetimeService;
 
   const gateway = {
+    assertGuildAvailable: vi.fn(() => {}),
     getTriggerChannel: vi.fn(async (guildId: string, channelId: string) => ({
       guildId,
       channelId,
@@ -106,6 +107,7 @@ describe("temporary channel lifecycle with Discord substituted and real SQLite",
     );
 
     await dataSource.initialize();
+    await dataSource.runMigrations();
     const executor = new DatabaseOperationExecutor();
     coordinator = new KeyedOperationCoordinator();
     triggers = new TriggerService(new TriggerRepository(dataSource, executor));
@@ -131,8 +133,11 @@ describe("temporary channel lifecycle with Discord substituted and real SQLite",
     );
 
     watch = new WatchTriggerHandler(coordinator, triggers, channels, entries, gateway);
-    unwatch = new UnwatchTriggerHandler(coordinator, triggers, channels, entries);
+
+    unwatch = new UnwatchTriggerHandler(coordinator, triggers, channels, entries, gateway);
+
     setLimit = new SetChannelLimitHandler(coordinator, limits, triggers, channels, gateway);
+
     lifetime = new OperationLifetimeService(coordinator);
     removals = new GuildRemovalRepository(dataSource, executor);
     removal = new RemoveGuildHandler(coordinator, removals, channels, triggers, limits);

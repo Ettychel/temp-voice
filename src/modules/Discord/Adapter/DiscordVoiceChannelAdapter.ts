@@ -33,6 +33,11 @@ export class DiscordVoiceChannelAdapter implements VoiceChannelGatewayInterface 
     private readonly optionsFactory: VoiceChannelOptionsFactory,
   ) {}
 
+  /** @throws {VoiceChannelUnavailableError} The bot cannot currently access this guild. */
+  assertGuildAvailable(guildId: string): void {
+    this.currentGuild(guildId);
+  }
+
   /**
    * @throws {Promise<VoiceChannelMissingError>} A direct API response confirmed absence.
    * @throws {Promise<VoiceChannelUnavailableError>} The guild, channel or permissions are unavailable.

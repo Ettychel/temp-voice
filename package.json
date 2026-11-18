@@ -19,13 +19,16 @@
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "check": "npm run format && npm run typecheck && npm run build",
     "migration:generate": "npm run build && typeorm migration:generate -d dist/DatabaseDataSource.js",
     "migration:run": "npm run build && typeorm migration:run -d dist/DatabaseDataSource.js",
+    "migration:revert": "npm run build && typeorm migration:revert -d dist/DatabaseDataSource.js",
     "start": "node --enable-source-maps dist/main.js",
     "start:dev": "tsc-watch --project tsconfig.build.json --onSuccess \"node --enable-source-maps dist/main.js\"",
+    "owner:recover": "node --enable-source-maps dist/console.js owner:recover",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix --max-warnings=0",
-    "format": "eslint . --fix && prettier --write .",
+    "format": "npm run lint:fix && prettier --write . && npm run lint && npm run format:check",
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -55,6 +58,9 @@
     "vitest": "5.1.0"
   },
   "overrides": {
+    "nest-commander": {
+      "@golevelup/nestjs-discovery": "7.1.0"
+    },
     "eslint-plugin-explicit-exceptions": {
       "eslint": "$eslint"
     }
@@ -70,6 +76,7 @@
     "discord-api-types": "0.37.120",
     "discord.js": "14.28.1",
     "necord": "7.1.1",
+    "nest-commander": "3.21.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "sprintf-js": "1.1.3",

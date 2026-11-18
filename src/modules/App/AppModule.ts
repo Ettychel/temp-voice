@@ -10,7 +10,9 @@ import { DatabaseConfig } from "../Infrastructure/Database/Config/DatabaseConfig
 import { DatabaseConfigFactory } from "../Infrastructure/Database/Config/Factory/DatabaseConfigFactory.js";
 import { DatabaseModule } from "../Infrastructure/Database/DatabaseModule.js";
 import { LoggingModule } from "../Logging/LoggingModule.js";
+import { OwnershipModule } from "../Ownership/OwnershipModule.js";
 import { DatabaseOptionsFactory } from "./Factory/DatabaseOptionsFactory.js";
+import { OwnershipBootstrapObserver } from "./Observer/OwnershipBootstrapObserver.js";
 
 @Module({
   imports: [
@@ -24,8 +26,13 @@ import { DatabaseOptionsFactory } from "./Factory/DatabaseOptionsFactory.js";
     }),
     LoggingModule,
     OperationModule,
+    OwnershipModule,
     DiscordModule,
   ],
-  providers: [HealthConfigFactory, CreateConfigProvider(HealthConfig, HealthConfigFactory)],
+  providers: [
+    HealthConfigFactory,
+    CreateConfigProvider(HealthConfig, HealthConfigFactory),
+    OwnershipBootstrapObserver,
+  ],
 })
 export class AppModule {}

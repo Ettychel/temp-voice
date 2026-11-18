@@ -26,6 +26,7 @@ describe("temporary channel deletion budget", () => {
     );
 
     await dataSource.initialize();
+    await dataSource.runMigrations();
     repository = new TemporaryChannelRepository(dataSource, new DatabaseOperationExecutor());
 
     await repository.add({

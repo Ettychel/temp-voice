@@ -5,6 +5,7 @@ import { LoggingModule } from "../Logging/LoggingModule.js";
 import { TriggersModule } from "../Triggers/TriggersModule.js";
 import { CreateTemporaryChannelHandler } from "./Handler/CreateTemporaryChannelHandler.js";
 import { DeleteTemporaryChannelHandler } from "./Handler/DeleteTemporaryChannelHandler.js";
+import { GetVoiceListHandler } from "./Handler/GetVoiceListHandler.js";
 import { ReconcileGuildHandler } from "./Handler/ReconcileGuildHandler.js";
 import { RemoveGuildHandler } from "./Handler/RemoveGuildHandler.js";
 import { SetChannelLimitHandler } from "./Handler/SetChannelLimitHandler.js";
@@ -22,6 +23,7 @@ import type { DynamicModule, Type } from "@nestjs/common";
   imports: [OperationModule, LimitsModule, LoggingModule, TriggersModule],
   providers: [
     TemporaryChannelRepository,
+    GetVoiceListHandler,
     TemporaryChannelService,
     VoiceEntryService,
     WatchTriggerHandler,
@@ -35,6 +37,7 @@ import type { DynamicModule, Type } from "@nestjs/common";
     GuildRemovalRepository,
   ],
   exports: [
+    GetVoiceListHandler,
     VoiceEntryService,
     WatchTriggerHandler,
     UnwatchTriggerHandler,

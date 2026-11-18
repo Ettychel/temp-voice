@@ -34,7 +34,7 @@ export class DatabaseOptionsFactory implements TypeOrmOptionsFactory {
         ClaimAttempt,
       ],
       migrations: [InitialSchema1794586991484, PendingGuildRemoval1794594323530],
-      migrationsRun: true,
+      migrationsRun: false,
       synchronize: false,
       enableWAL: true,
       timeout: 1000,

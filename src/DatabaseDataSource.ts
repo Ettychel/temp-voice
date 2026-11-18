@@ -1,10 +1,10 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { DataSource } from "typeorm";
+import { DatabaseOptionsModule } from "./modules/App/DatabaseOptionsModule.js";
 import { DatabaseOptionsFactory } from "./modules/App/Factory/DatabaseOptionsFactory.js";
-import { CliModule } from "./modules/Cli/CliModule.js";
 
-const app = await NestFactory.createApplicationContext(CliModule, {
+const app = await NestFactory.createApplicationContext(DatabaseOptionsModule, {
   logger: false,
   abortOnError: false,
 });
@@ -12,10 +12,7 @@ const app = await NestFactory.createApplicationContext(CliModule, {
 let dataSource: DataSource;
 
 try {
-  dataSource = new DataSource({
-    ...app.get(DatabaseOptionsFactory).createTypeOrmOptions(),
-    migrationsRun: false,
-  });
+  dataSource = new DataSource(app.get(DatabaseOptionsFactory).createTypeOrmOptions());
 } finally {
   await app.close();
 }

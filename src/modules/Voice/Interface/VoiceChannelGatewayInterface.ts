@@ -4,6 +4,9 @@ import type { VoiceChannelMutationError } from "../Error/VoiceChannelMutationErr
 import type { VoiceChannelUnavailableError } from "../Error/VoiceChannelUnavailableError.js";
 
 export interface VoiceChannelGatewayInterface {
+  /** @throws {VoiceChannelUnavailableError} The bot cannot currently access this guild. */
+  assertGuildAvailable(guildId: string): void;
+
   /**
    * Reads fresh channel facts for the requested guild after the scenario enters its queue.
    * @throws {Promise<VoiceChannelUnavailableError>} The channel cannot be reliably read.

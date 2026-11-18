@@ -32,14 +32,15 @@ export class SetChannelLimitHandler {
    * @throws {Promise<OperationAdmissionClosedError>} The application stopped accepting work.
    * @throws {Promise<unknown>}
    */
-  handle(guildId: string, limit: number, channelId?: string): Promise<void> {
+  async handle(guildId: string, limit: number, channelId?: string): Promise<void> {
+    if (channelId === undefined) {
+      this.gateway.assertGuildAvailable(guildId);
+      await this.limits.setGuildLimit(guildId, limit);
+
+      return;
+    }
+
     return this.coordinator.run(guildId, async () => {
-      if (channelId === undefined) {
-        await this.limits.setGuildLimit(guildId, limit);
-
-        return;
-      }
-
       const normalizedLimit = this.limits.normalizeLimit(limit);
       const channel = await this.gateway.getTriggerChannel(guildId, channelId);
 

@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ChannelType } from "discord.js";
+import { ChannelType, Locale } from "discord.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -7,12 +7,19 @@ import { DataSource } from "typeorm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabaseOptionsFactory } from "../../App/Factory/DatabaseOptionsFactory.js";
 import { KeyedOperationCoordinator } from "../../Core/Operation/Service/KeyedOperationCoordinator.js";
+import { OwnerCommandController } from "../../Discord/Controller/OwnerCommandController.js";
+import { CommandListService } from "../../Discord/Service/CommandListService.js";
+import { CommandReplyService } from "../../Discord/Service/CommandReplyService.js";
 import { DatabaseConfig } from "../../Infrastructure/Database/Config/DatabaseConfig.js";
 import { DatabaseOperationExecutor } from "../../Infrastructure/Database/Service/DatabaseOperationExecutor.js";
 import { CreationBlockReason } from "../../Limits/Enum/CreationBlockReason.js";
 import { InvalidChannelLimitError } from "../../Limits/Error/InvalidChannelLimitError.js";
 import { GuildLimitRepository } from "../../Limits/Repository/GuildLimitRepository.js";
 import { LimitsService } from "../../Limits/Service/LimitsService.js";
+import { OwnerAccessDeniedError } from "../../Ownership/Error/OwnerAccessDeniedError.js";
+import { OwnershipRepository } from "../../Ownership/Repository/OwnershipRepository.js";
+import { OwnerCodeService } from "../../Ownership/Service/OwnerCodeService.js";
+import { OwnershipService } from "../../Ownership/Service/OwnershipService.js";
 import { WatchTriggerResult } from "../../Triggers/Enum/WatchTriggerResult.js";
 import { InvalidTriggerChannelError } from "../../Triggers/Error/InvalidTriggerChannelError.js";
 import { TriggerPermissionsError } from "../../Triggers/Error/TriggerPermissionsError.js";
@@ -22,22 +29,27 @@ import { VoiceChannelState } from "../Enum/VoiceChannelState.js";
 import { TemporaryChannelRepository } from "../Repository/TemporaryChannelRepository.js";
 import { TemporaryChannelService } from "../Service/TemporaryChannelService.js";
 import { VoiceEntryService } from "../Service/VoiceEntryService.js";
+import { GetVoiceListHandler } from "./GetVoiceListHandler.js";
 import { SetChannelLimitHandler } from "./SetChannelLimitHandler.js";
 import { SynchronizeTriggerHandler } from "./SynchronizeTriggerHandler.js";
 import { UnwatchTriggerHandler } from "./UnwatchTriggerHandler.js";
 import { WatchTriggerHandler } from "./WatchTriggerHandler.js";
 
+import type { SlashCommandContext } from "necord";
+import type { CommandTargetService } from "../../Discord/Service/CommandTargetService.js";
 import type { TriggerChannelDto } from "../../Triggers/Dto/TriggerChannelDto.js";
 
 describe("trigger configuration scenarios on SQLite", () => {
   let directory: string;
   let dataSource: DataSource;
   let coordinator: KeyedOperationCoordinator;
+  let executor: DatabaseOperationExecutor;
   let triggers: TriggerService;
   let limits: LimitsService;
   let temporary: TemporaryChannelRepository;
   let channels: TemporaryChannelService;
   let entries: VoiceEntryService;
+  let getList: GetVoiceListHandler;
 
   const facts = (guildId = "guild", channelId = "trigger"): TriggerChannelDto => ({
     guildId,
@@ -48,6 +60,7 @@ describe("trigger configuration scenarios on SQLite", () => {
   });
 
   const gateway = {
+    assertGuildAvailable: vi.fn(() => {}),
     getTriggerChannel: vi.fn(async (guildId: string, channelId: string) =>
       facts(guildId, channelId),
     ),
@@ -79,16 +92,22 @@ describe("trigger configuration scenarios on SQLite", () => {
     );
 
     await dataSource.initialize();
-    const executor = new DatabaseOperationExecutor();
+    await dataSource.runMigrations();
+    executor = new DatabaseOperationExecutor();
     coordinator = new KeyedOperationCoordinator();
     triggers = new TriggerService(new TriggerRepository(dataSource, executor));
     limits = new LimitsService(new GuildLimitRepository(dataSource, executor));
     temporary = new TemporaryChannelRepository(dataSource, executor);
     channels = new TemporaryChannelService(temporary);
     entries = new VoiceEntryService();
+
     watch = new WatchTriggerHandler(coordinator, triggers, channels, entries, gateway);
-    unwatch = new UnwatchTriggerHandler(coordinator, triggers, channels, entries);
+
+    unwatch = new UnwatchTriggerHandler(coordinator, triggers, channels, entries, gateway);
+
     setLimit = new SetChannelLimitHandler(coordinator, limits, triggers, channels, gateway);
+
+    getList = new GetVoiceListHandler(triggers, channels, limits, gateway);
     synchronize = new SynchronizeTriggerHandler(coordinator, triggers, channels, entries);
   });
 
@@ -327,7 +346,7 @@ describe("trigger configuration scenarios on SQLite", () => {
     expect(entries.isEligible(after)).toBe(true);
   });
 
-  it("serializes guild configuration while Discord waits leave another guild and SQLite free", async () => {
+  it("serializes trigger configuration while guild limits do not wait for Discord", async () => {
     let release!: () => void;
     let started!: () => void;
 
@@ -349,8 +368,17 @@ describe("trigger configuration scenarios on SQLite", () => {
     const pendingWatch = watch.handle("guild", "trigger");
     await startedPromise;
     const pendingLimit = setLimit.handle("guild", 2, "trigger");
+    await setLimit.handle("guild", 10);
     await setLimit.handle("other-guild", 10);
+    expect(await limits.getGuildLimit("guild")).toBe(10);
     expect(await limits.getGuildLimit("other-guild")).toBe(10);
+
+    expect(await getList.handle("guild", true)).toMatchObject({
+      triggers: [],
+      totalCount: 0,
+      guildLimit: 10,
+    });
+
     expect(await triggers.get("guild", "trigger")).toBeNull();
     release();
     await Promise.all([pendingWatch, pendingLimit]);
@@ -359,6 +387,140 @@ describe("trigger configuration scenarios on SQLite", () => {
       isActive: true,
       channelLimit: 2,
     });
+  });
+
+  it.each(["watch", "unwatch", "limit", "list"] as const)(
+    "finishes an accepted owner %s after ownership changes while the guild queue is busy",
+    async (operation) => {
+      const ownership = new OwnershipService(
+        new OwnershipRepository(dataSource, executor),
+        new OwnerCodeService(),
+      );
+
+      await ownership.claim("owner", (await ownership.initialize())!);
+      await watch.handle("guild", "trigger");
+      const authorization = vi.spyOn(ownership, "assertOwner");
+      let release!: () => void;
+      let accepted!: () => void;
+
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+
+      const acceptance = new Promise<void>((resolve) => {
+        accepted = resolve;
+      });
+
+      const held = coordinator.run("guild", () => gate);
+
+      const targets = {
+        channel: () => accepted(),
+        guild: () => accepted(),
+      } as unknown as CommandTargetService;
+
+      const replies = new CommandReplyService();
+
+      const controller = new OwnerCommandController(
+        ownership,
+        watch,
+        unwatch,
+        setLimit,
+        getList,
+        new CommandListService(replies, ownership, targets),
+        replies,
+        targets,
+      );
+
+      const interaction = {
+        user: { id: "owner" },
+        locale: Locale.EnglishUS,
+        deferred: false,
+        replied: false,
+        inGuild: () => false,
+        deferReply: vi.fn(async () => {
+          interaction.deferred = true;
+        }),
+        editReply: vi.fn(async () => ({})),
+      };
+
+      const context = [interaction] as unknown as SlashCommandContext;
+
+      const run = () => {
+        switch (operation) {
+          case "watch":
+            return controller.watch(context, { guild: "guild", channel: "new-trigger" });
+          case "unwatch":
+            return controller.unwatch(context, { guild: "guild", channel: "trigger" });
+          case "limit":
+            return controller.limit(context, { guild: "guild", channel: "trigger", limit: 2 });
+          case "list":
+            return controller.list(context, { guild: "guild" });
+        }
+      };
+
+      const pending = run();
+
+      try {
+        await acceptance;
+        await ownership.claim("next", await ownership.recover());
+        expect(authorization).toHaveBeenCalledExactlyOnceWith("owner");
+      } finally {
+        release();
+        await held;
+      }
+
+      await pending;
+      expect(interaction.editReply).toHaveBeenCalledTimes(1);
+      expect(authorization).toHaveBeenCalledTimes(1);
+
+      if (operation === "watch") {
+        expect((await triggers.get("guild", "new-trigger"))?.isActive).toBe(true);
+      } else if (operation === "unwatch") {
+        expect(await triggers.get("guild", "trigger")).toBeNull();
+      } else if (operation === "limit") {
+        expect((await triggers.get("guild", "trigger"))?.channelLimit).toBe(2);
+      }
+
+      await expect(run()).rejects.toBeInstanceOf(OwnerAccessDeniedError);
+      expect(interaction.editReply).toHaveBeenCalledTimes(1);
+      expect(authorization).toHaveBeenCalledTimes(2);
+      authorization.mockRestore();
+    },
+  );
+
+  it("counts active, inactive, missing-trigger and exhausted rooms in the list snapshot", async () => {
+    await watch.handle("guild", "active");
+    await setLimit.handle("guild", 2, "inactive");
+    await setLimit.handle("guild", 10);
+
+    for (const [channelId, triggerChannelId, deleteAttempts] of [
+      ["a", "active", 0],
+      ["b", "inactive", 3],
+      ["c", "missing", 1],
+    ] as const) {
+      await temporary.add({
+        channelId,
+        guildId: "guild",
+        triggerChannelId,
+        ownerId: "user",
+        deleteAttempts,
+        createdAt: 1,
+      });
+    }
+
+    const list = await getList.handle("guild", true);
+
+    expect(list).toMatchObject({
+      totalCount: 3,
+      orphanCount: 2,
+      problemChannelIds: ["b"],
+      guildLimit: 10,
+    });
+
+    expect(list.triggers).toEqual([
+      { channelId: "active", isActive: true, channelLimit: null, channelCount: 1 },
+      { channelId: "inactive", isActive: false, channelLimit: 2, channelCount: 1 },
+    ]);
   });
 
   it("fetches actual channel facts only after waiting for the guild queue", async () => {
